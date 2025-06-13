@@ -5,14 +5,21 @@ const upload = require('../middleware/upload');
 const fs = require('fs').promises;
 const path = require('path');
 
-// Create uploads directory if it doesn't exist
+// Buat direktori uploads jika belum ada
 const uploadDir = path.join(__dirname, "../uploads/products");
-fs.mkdir(uploadDir, { recursive: true }).catch(console.error);
 
-// Serve static files
+(async () => {
+    try {
+        await fs.mkdir(uploadDir, { recursive: true });
+    } catch (error) {
+        console.error("Error creating upload directory:", error);
+    }
+})();
+
+// Layani file gambar statis
 router.use('/images', express.static('uploads/products'));
 
-// Get all products with pagination and filtering
+// Get all products dengan pagination dan filtering
 router.get("/", async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -31,49 +38,76 @@ router.get("/", async (req, res) => {
 
         let countQuery = 'SELECT COUNT(DISTINCT p.id) as total FROM products p';
         let queryParams = [];
+        let countParams = [];
 
         if (category || search) {
             query += " WHERE";
             countQuery += " WHERE";
 
+            let conditions = [];
+
             if (category) {
-                query += " p.category_id = ?";
-                countQuery += " p.category_id = ?";
+                conditions.push(" p.category_id = ?");
                 queryParams.push(category);
+                countParams.push(category);
             }
 
             if (search) {
-                if (category) {
-                    query += " AND";
-                    countQuery += " AND";
-                }
-                query += " p.name LIKE ?";
-                countQuery += " p.name LIKE ?";
+                conditions.push(" p.name LIKE ?");
                 queryParams.push(`%${search}%`);
+                countParams.push(`%${search}%`);
             }
+
+            query += conditions.join(" AND ");
+            countQuery += conditions.join(" AND ");
         }
 
         query += " GROUP BY p.id LIMIT ? OFFSET ?";
         queryParams.push(limit, offset);
 
         const [products] = await db.query(query, queryParams);
-        const [totalRows] = await db.query(countQuery, queryParams.slice(0, -2));
+        const [totalRows] = await db.query(countQuery, countParams);
 
-        const totalPages = Math.ceil(totalRows[0].total / limit);
+        const totalPages = Math.ceil(totalRows[0]?.total / limit);
 
         res.json({
             products,
             pagination: {
                 currentPage: page,
                 totalPages,
-                totalItems: totalRows[0].total,
+                totalItems: totalRows[0]?.total || 0,
                 itemsPerPage: limit,
             }
         });
 
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Error fetching products:", error);
         res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+// Get product by ID
+router.get("/:id", async (req, res) => {
+    try {
+        const [product] = await db.query(
+            `SELECT p.*, c.name as category_name,
+            GROUP_CONCAT(pi.filename) as images
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            LEFT JOIN product_images pi ON p.id = pi.product_id
+            WHERE p.id = ?
+            GROUP BY p.id`,
+            [req.params.id]
+        );
+
+        if (product.length === 0) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        res.json(product[0]);
+    } catch (error) {
+        console.error("Error fetching product:", error);
+        res.status(500).json({ message: "Error fetching product" });
     }
 });
 
