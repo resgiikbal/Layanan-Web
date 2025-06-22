@@ -324,4 +324,41 @@ router.put('/users/:id/role', adminAuth, async (req, res) => {
     }
 });
 
+// Create category
+router.post('/categories', adminAuth, async (req, res) => {
+    try {
+        const { name } = req.body;
+        const [result] = await db.query('INSERT INTO categories (name) VALUES (?)', [name]);
+        res.status(201).json({ id: result.insertId, name });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error creating category' });
+    }
+});
+
+// Update category
+router.put('/categories/:id', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name } = req.body;
+        await db.query('UPDATE categories SET name = ? WHERE id = ?', [name, id]);
+        res.json({ id, name });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error updating category' });
+    }
+});
+
+// Delete category
+router.delete('/categories/:id', adminAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        await db.query('DELETE FROM categories WHERE id = ?', [id]);
+        res.json({ message: 'Category deleted successfully' });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error deleting category' });
+    }
+});
+
 module.exports = router;
