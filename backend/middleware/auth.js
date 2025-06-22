@@ -1,7 +1,11 @@
 const jwt = require ('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
+Backend-APIs-for-Admin-Analytics
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+
     const token = req.header('Authorization')?.replace('Bearer', '');
+ dev
 
     if (!token){
         return res.status(401).json({message: 'No token, authorization denied'});
