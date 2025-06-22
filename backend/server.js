@@ -24,7 +24,10 @@ app.use('/api/products', productRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/categories', categoriesRouter);
+Backend-APIs-for-Admin-Analytics
 app.use('/api/orders', orderRouter);
+app.use('/api/order', orderRouter);
+dev
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
