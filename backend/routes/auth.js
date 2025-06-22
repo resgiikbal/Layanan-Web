@@ -70,7 +70,7 @@ router.post('/login', async (req, res) => {
         );
 
         if (users.length === 0) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Kredensial tidak valid' });
         }
 
         const user = users[0];
@@ -78,7 +78,7 @@ router.post('/login', async (req, res) => {
         // Verify password
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-            return res.status(400).json({ message: 'Invalid credentials' });
+            return res.status(400).json({ message: 'Kredensial tidak valid' });
         }
 
         // Generate JWT token
