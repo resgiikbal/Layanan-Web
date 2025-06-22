@@ -22,11 +22,11 @@ router.get("/stats", adminAuth, async (req, res) => {
 
         const [orderStats] = await db.query(`
            SELECT 
-    COUNT(CASE WHEN status = 'Tertunda' THEN 1 END) AS tertunda_orders,
-    COUNT(CASE WHEN status = 'Diproses' THEN 1 END) AS diproses_orders,
-    COUNT(CASE WHEN status = 'Dikirim' THEN 1 END) AS dikirim_orders,
-    COUNT(CASE WHEN status = 'Terkirim' THEN 1 END) AS terkirim_orders,
-    COUNT(CASE WHEN status = 'Dibatalkan' THEN 1 END) AS dibatalkan_orders
+    COUNT(CASE WHEN status = 'Tertunda' THEN 1 END) AS tertunda,
+    COUNT(CASE WHEN status = 'Diproses' THEN 1 END) AS diproses,
+    COUNT(CASE WHEN status = 'Dikirim' THEN 1 END) AS dikirim,
+    COUNT(CASE WHEN status = 'Terkirim' THEN 1 END) AS terkirim,
+    COUNT(CASE WHEN status = 'Dibatalkan' THEN 1 END) AS dibatalkan
 FROM orders;
 
         `);
@@ -292,6 +292,35 @@ router.put("/orders/:id/status", adminAuth, async (req, res) => {
         await db.query("ROLLBACK");
         console.error("Error:", error);
         res.status(500).json({ message: "Error updating order status" });
+    }
+});
+
+// Get all users
+router.get('/users', adminAuth, async (req, res) => {
+    try {
+        const [users] = await db.query('SELECT id, email, first_name, last_name, role FROM users');
+        res.json(users);
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error fetching users' });
+    }
+});
+
+// Update user role
+router.put('/users/:id/role', adminAuth, async (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body;
+
+    try {
+        if (!['admin', 'user'].includes(role)) {
+            return res.status(400).json({ message: 'Invalid role' });
+        }
+
+        await db.query('UPDATE users SET role = ? WHERE id = ?', [role, id]);
+        res.json({ message: 'User role updated successfully' });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error updating user role' });
     }
 });
 
