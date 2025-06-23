@@ -24,6 +24,10 @@ app.use(express.json());
 // Akses file statis dari folder uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Middleware untuk mengizinkan akses ke folder uploads
+// Serve static files from uploads folder
+app.use('/uploads/payment-proofs', express.static('uploads/payment-proofs'));
+
 // Routes
 const productRouter = require('./routes/products');
 const authRouter = require('./routes/auth');
