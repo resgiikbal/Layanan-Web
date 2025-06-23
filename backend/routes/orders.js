@@ -2,6 +2,36 @@ const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
 const authMiddleware = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+
+// Konfigurasi multer untuk upload file
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'uploads/payment-proofs/');
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'payment-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: function (req, file, cb) {
+    const filetypes = /jpeg|jpg|png/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Hanya file gambar (jpg, jpeg, png) yang diperbolehkan!'));
+  }
+});
 
 // CREATE NEW ORDER (HITUNG TOTAL OTOMATIS)
 router.post('/', authMiddleware, async (req, res) => {
@@ -102,6 +132,51 @@ router.get('/my-orders', authMiddleware, async (req, res) => {
   } catch (error) {
     console.error('Error fetching orders:', error.message);
     res.status(500).json({ message: 'Error fetching orders' });
+  }
+});
+
+// Upload bukti pembayaran
+router.post('/:orderId/payment-proof', authMiddleware, upload.single('paymentProof'), async (req, res) => {
+  const orderId = req.params.orderId;
+  const userId = req.user.id;
+
+  try {
+    // Cek kepemilikan order
+    const [order] = await db.query('SELECT * FROM orders WHERE id = ? AND user_id = ?', [orderId, userId]);
+    
+    if (!order.length) {
+      return res.status(404).json({ message: 'Order tidak ditemukan' });
+    }
+
+    // Update payment_proof di database
+    await db.query('UPDATE orders SET payment_proof = ? WHERE id = ?', [req.file.filename, orderId]);
+
+    res.json({
+      message: 'Bukti pembayaran berhasil diunggah',
+      payment_proof: req.file.filename
+    });
+  } catch (error) {
+    console.error('Error uploading payment proof:', error);
+    res.status(500).json({ message: 'Error uploading payment proof' });
+  }
+});
+
+// Get payment proof
+router.get('/:orderId/payment-proof', authMiddleware, async (req, res) => {
+  const orderId = req.params.orderId;
+  const userId = req.user.id;
+
+  try {
+    const [order] = await db.query('SELECT payment_proof FROM orders WHERE id = ? AND user_id = ?', [orderId, userId]);
+    
+    if (!order.length) {
+      return res.status(404).json({ message: 'Order tidak ditemukan' });
+    }
+
+    res.json({ payment_proof: order[0].payment_proof });
+  } catch (error) {
+    console.error('Error getting payment proof:', error);
+    res.status(500).json({ message: 'Error getting payment proof' });
   }
 });
 
