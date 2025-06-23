@@ -202,7 +202,8 @@ router.get("/orders", adminAuth, async (req, res) => {
                 COUNT(oi.id) as item_count,
                 GROUP_CONCAT(DISTINCT p.name) as products,
                 o.shipping_address, o.shipping_city,
-                o.shipping_postal_code, o.shipping_phone
+                o.shipping_postal_code, o.shipping_phone,
+                o.payment_proof
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             LEFT JOIN order_items oi ON o.id = oi.order_id
@@ -223,7 +224,8 @@ router.get("/orders/:id", adminAuth, async (req, res) => {
         const [orders] = await db.query(`
             SELECT o.*, u.email, u.first_name, u.last_name,
                 o.shipping_address, o.shipping_city,
-                o.shipping_postal_code, o.shipping_phone
+                o.shipping_postal_code, o.shipping_phone,
+                o.payment_proof
             FROM orders o
             LEFT JOIN users u ON o.user_id = u.id
             WHERE o.id = ?
@@ -263,9 +265,18 @@ router.put("/orders/:id/status", adminAuth, async (req, res) => {
         await db.query("START TRANSACTION");
 
         const [result] = await db.query(
-            "UPDATE orders SET status = ?, updated_at = NOW() WHERE id = ?",
-            [status, orderId]
-        );
+  `UPDATE orders 
+   SET status = ?, 
+       updated_at = NOW(),
+       payment_proof_viewed = CASE 
+         WHEN ? = 'Tertunda' THEN FALSE
+         WHEN ? IN ('Diproses', 'Dibatalkan') THEN TRUE
+         ELSE payment_proof_viewed
+       END
+   WHERE id = ?`,
+  [status, status, status, orderId]
+);
+
 
         if (result.affectedRows === 0) {
             await db.query("ROLLBACK");
