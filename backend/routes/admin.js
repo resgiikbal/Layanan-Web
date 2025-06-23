@@ -258,12 +258,13 @@ router.put("/orders/:id/status", adminAuth, async (req, res) => {
     const orderId = req.params.id;
 
     try {
-        if (!["Tertunda", "Diproses", "Dikirim", "Terkirim", "Dibatalkan"].includes(status)) {
-            return res.status(400).json({ message: "Invalid status" });
+        if (!['Tertunda', 'Diproses', 'Dikirim', 'Terkirim', 'Dibatalkan'].includes(status)) {
+            return res.status(400).json({ message: 'Invalid status' });
         }
 
-        await db.query("START TRANSACTION");
+        await db.query('START TRANSACTION');
 
+        // Update status pesanan
         const [result] = await db.query(
   `UPDATE orders 
    SET status = ?, 
@@ -279,30 +280,39 @@ router.put("/orders/:id/status", adminAuth, async (req, res) => {
 
 
         if (result.affectedRows === 0) {
-            await db.query("ROLLBACK");
-            return res.status(404).json({ message: "Order not found" });
+            await db.query('ROLLBACK');
+            return res.status(404).json({ message: 'Order not found' });
         }
 
-        if (status === "Dibatalkan") {
+        // Jika status diubah menjadi Diproses atau Dibatalkan, tandai bukti pembayaran sebagai sudah dilihat
+        if (status === 'Diproses' || status === 'Dibatalkan') {
+            await db.query(
+                'UPDATE orders SET payment_proof_viewed = TRUE WHERE id = ?',
+                [orderId]
+            );
+        }
+
+        // Jika status Dibatalkan, kembalikan stok produk
+        if (status === 'Dibatalkan') {
             const [orderItems] = await db.query(
-                "SELECT product_id, quantity FROM order_items WHERE order_id = ?",
+                'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
                 [orderId]
             );
 
             for (const item of orderItems) {
                 await db.query(
-                    "UPDATE products SET stock = stock + ? WHERE id = ?",
+                    'UPDATE products SET stock = stock + ? WHERE id = ?',
                     [item.quantity, item.product_id]
                 );
             }
         }
 
-        await db.query("COMMIT");
-        res.json({ message: "Order status updated successfully" });
+        await db.query('COMMIT');
+        res.json({ message: 'Order status updated successfully' });
     } catch (error) {
-        await db.query("ROLLBACK");
-        console.error("Error:", error);
-        res.status(500).json({ message: "Error updating order status" });
+        await db.query('ROLLBACK');
+        console.error('Error:', error);
+        res.status(500).json({ message: 'Error updating order status' });
     }
 });
 
@@ -369,6 +379,41 @@ router.delete('/categories/:id', adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Error:', error);
         res.status(500).json({ message: 'Error deleting category' });
+    }
+});
+
+router.post('/orders/:id/mark-payment-proof-viewed', adminAuth, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    
+    await db.query(
+      'UPDATE orders SET payment_proof_viewed = TRUE WHERE id = ?',
+      [orderId]
+    );
+
+    res.json({ message: 'Payment proof marked as viewed' });
+  } catch (error) {
+    console.error('Error marking payment proof as viewed:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Endpoint baru untuk melihat bukti pembayaran
+router.get("/orders/:id/payment-proof", adminAuth, async (req, res) => {
+    try {
+        const [order] = await db.query(
+            "SELECT payment_proof FROM orders WHERE id = ?",
+            [req.params.id]
+        );
+
+        if (!order.length || !order[0].payment_proof) {
+            return res.status(404).json({ message: "Bukti pembayaran tidak ditemukan" });
+        }
+
+        res.json({ payment_proof: order[0].payment_proof });
+    } catch (error) {
+        console.error("Error:", error);
+        res.status(500).json({ message: "Error getting payment proof" });
     }
 });
 
